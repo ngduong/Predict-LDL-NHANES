@@ -1,0 +1,77 @@
+---
+title: "Analysis"
+author: "Ngoc Duong"
+date: "4/2/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(caret)
+library(tidyverse)
+library(viridis)
+library(splines)
+library(mgcv)
+library(ggplot2)
+library(pdp)
+library(earth)
+library(patchwork)
+library(nnet)
+library(MASS) # ordinal response (iii)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+
+First, we import the created train and test datasets. Then, we can identify response variable and design matrices for both datasets.
+
+```{r}
+#import data
+chol_train = read_csv("./training_data_final.csv")
+chol_test = read_csv("./test_data_final.csv")
+
+#train data
+#design matrix 
+x_train <-model.matrix(lbdldl~.,chol_train)[,-1] 
+x_train2 <- chol_train %>% dplyr::select(-lbdldl)
+#vector of response
+y_train <- chol_train$lbdldl
+
+#test data
+x_test = sol_test %>% select(-lbdldl) %>% as.matrix() #design matrix
+y_test = sol_test %>% select(lbdldl) %>% as.matrix() #response vector
+```
+
+Next, we can fit an elastic net on the training data 
+```{r}
+trnCtrl = trainControl(
+             method = "repeatedCV",
+             number = 10,
+             repeats = 5)
+
+set.seed(13)
+elastic_net = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 0:1,
+                                           lambda = seq(-5, 2, length = 100)),
+                  preProc = c("center","scale"),
+                  trControl = ctrl1)
+
+plot(lasso_fit, xTrans =function(x)log(x))
+```
+```
+
+

@@ -520,7 +520,8 @@ questionnaire_categorical = questionnaire_full_df %&gt;%
 <pre class="r"><code>full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %&gt;% reduce(full_join, by = &quot;seqn&quot;) 
 full_data_final = full_data[complete.cases(full_data),]</code></pre>
 <p>Split into Training and Test Data</p>
-<pre class="r"><code>training_data = full_data_final %&gt;% sample_frac(0.8)
+<pre class="r"><code>set.seed(13)
+training_data = full_data_final %&gt;% sample_frac(0.8)
 test_data = full_data_final %&gt;% sample_frac(0.2)
 
 write.csv(training_data, &quot;./training_data_final.csv&quot;)

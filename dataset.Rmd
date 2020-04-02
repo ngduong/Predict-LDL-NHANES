@@ -173,6 +173,7 @@ full_data_final = full_data[complete.cases(full_data),]
 
 Split into Training and Test Data
 ```{r}
+set.seed(13)
 training_data = full_data_final %>% sample_frac(0.8)
 test_data = full_data_final %>% sample_frac(0.2)
 
