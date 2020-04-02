@@ -1,0 +1,182 @@
+---
+title: "NHANES data wrangling -- full dataset"
+author: "Ngoc Duong"
+date: "4/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(nhanesA)
+library(purrr)
+```
+
+Import and clean data from laboratory and examination files
+```{r warning = FALSE, message = FALSE}
+#response variable low-density cholesterol
+chol_df = nhanes("TRIGLY_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, lbdldl) 
+
+#extract variables from laboratory datasets
+#albumin and creatinine
+alb_cr_df = nhanes("ALB_CR_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, urxuma, urxucr) 
+
+#complete blood count with differentials
+blood_df = nhanes("CBC_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, lbxlypct, lbxmopct, lbxnepct, lbxhgb, lbxhct) 
+
+#high sensitivity C-reactive protein
+crp_df = nhanes("HSCRP_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, lbxhscrp) 
+
+#extract variables from standard biochemistry profiles
+biochem_df = nhanes("BIOPRO_I") %>% 
+  janitor::clean_names() %>% 
+ select(seqn, lbxsapsi, lbxsc3si, lbxsgl, lbxsgb, lbxsgtsi, lbxsldsi, lbxsph, lbxsksi, lbxstb, lbxsua) 
+
+#extract variables from body measure profiles
+bm_df = nhanes("BMX_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, bmxbmi, bmxwaist)
+
+#variables from blood pressure
+bp_df = nhanes("BPX_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, bpxsy1, bpxsy2, bpxsy3, bpxdi1, bpxdi2, bpxdi3) %>%
+  mutate(bpxsy = rowMeans(select(., contains('bpxsy')), na.rm = TRUE),
+         bpxdi = rowMeans(select(., contains('bpxdi')), na.rm = TRUE)) %>% 
+  select(seqn, bpxsy, bpxdi)
+```
+
+Dietary and nutrients data
+```{r warning = FALSE, message = FALSE}
+nutrient_df <- nhanes('DR1TOT_I') %>% 
+   janitor::clean_names() %>% 
+   select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %>% 
+    mutate(
+    dbd100 = as.factor(dbd100),
+    drqsprep = as.factor(drqsprep),
+    drqsdiet = as.factor(drqsdiet),
+    dr1_300 = as.factor(dr1_300),
+    drd340 = as.factor(drd340),
+    drd360 = as.factor(drd360)
+  ) %>% 
+  mutate(
+    dbd100 = na_if(dbd100,"9"), 
+    drqsprep = na_if(drqsprep, "9"),
+    drqsdiet = na_if(drqsdiet, "9"), 
+    dr1_300 = na_if(dr1_300, "7"),
+    dr1_300 = na_if(dr1_300, "9"), 
+    drd340 = na_if(drd340, "7"),
+    drd340 = na_if(drd340, "9"),
+    drd360 = na_if(drd360, "7"),
+    drd360 = na_if(drd360, "9")
+  )
+
+supplement_df <- nhanes('DS1TOT_I') %>% 
+  janitor::clean_names() %>% 
+  select(seqn, ds1dscnt, ds1ancnt)
+```
+
+Demographics and questionnaire data 
+```{r warning = FALSE, message = FALSE}
+#extract variables from demographics data
+demographic_df = nhanes("DEMO_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %>% 
+  filter(ridageyr > 17)
+
+#extract variables from different datasets within questionnaire
+bp_cholesterol_df = nhanes("BPQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, bpq020) %>% 
+  filter(bpq020 == 1 | bpq020 == 2)
+
+cv_health_df = nhanes("CDQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, cdq001)
+
+consumer_behavior_df = nhanes("CBQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, cbd071, cbd121, cbd131)
+
+health_status_df = nhanes("HSQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, hsd010)
+
+diabetes_df = nhanes("DIQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, diq010)
+
+diet_behavior_df = nhanes("DBQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, dbq700, dbd895)
+
+food_security_df = nhanes("FSQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, fsd032a, fsd032c, fsdhh)
+
+insurance_df = nhanes("HIQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, hiq011, hiq270)
+
+activity_df = nhanes("PAQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, paq605)
+
+smoking_df = nhanes("SMQ_I") %>% 
+  janitor::clean_names() %>% 
+  select(seqn, smq020)
+
+questionnaire_full_df = list(bp_cholesterol_df, cv_health_df, consumer_behavior_df, health_status_df, diabetes_df, diet_behavior_df, food_security_df, insurance_df, activity_df, smoking_df) %>% reduce(full_join, by = "seqn") 
+questionnaire_full_df = questionnaire_full_df[complete.cases(questionnaire_full_df),] 
+
+questionnaire_numerical = questionnaire_full_df %>% 
+  select(seqn, cbd071, cbd121, cbd131, dbd895) %>% 
+  na_if(., 777777) %>% 
+  na_if(., 999999) %>% 
+  na_if(., ".") %>% 
+  na_if(., 7777) %>% 
+  na_if(., 9999)
+
+questionnaire_categorical = questionnaire_full_df %>% 
+  select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq011, hiq270, paq605, smq020) %>% 
+  mutate(
+    bpq020 = as.factor(bpq020),
+    cdq001 = as.factor(cdq001),
+    hsd010 = as.factor(hsd010),
+    diq010 = as.factor(diq010),
+    dbq700 = as.factor(dbq700),
+    fsd032a = as.factor(fsd032a),
+    fsd032c = as.factor(fsd032c),
+    fsdhh = as.factor(fsdhh),
+    hiq011 = as.factor(hiq011),
+    hiq270 = as.factor(hiq270),
+    paq605 = as.factor(paq605),
+    smq020 = as.factor(smq020)
+  ) %>% 
+  na_if(., 7) %>% 
+  na_if(., 9) %>% 
+  na_if(., ".")
+```
+
+Join datasets
+```{r}
+full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %>% reduce(full_join, by = "seqn") 
+full_data_final = full_data[complete.cases(full_data),]
+```
+
+Split into Training and Test Data
+```{r}
+training_data = full_data_final %>% sample_frac(0.8)
+test_data = full_data_final %>% sample_frac(0.2)
+
+write.csv(training_data, "./training_data_final.csv")
+write.csv(test_data, "./test_data_final.csv")
+```
+
