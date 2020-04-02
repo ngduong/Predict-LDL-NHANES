@@ -145,7 +145,7 @@ questionnaire_numerical = questionnaire_full_df %>%
   na_if(., 9999)
 
 questionnaire_categorical = questionnaire_full_df %>% 
-  select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq011, hiq270, paq605, smq020) %>% 
+  select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %>% 
   mutate(
     bpq020 = as.factor(bpq020),
     cdq001 = as.factor(cdq001),
@@ -155,7 +155,6 @@ questionnaire_categorical = questionnaire_full_df %>%
     fsd032a = as.factor(fsd032a),
     fsd032c = as.factor(fsd032c),
     fsdhh = as.factor(fsdhh),
-    hiq011 = as.factor(hiq011),
     hiq270 = as.factor(hiq270),
     paq605 = as.factor(paq605),
     smq020 = as.factor(smq020)
