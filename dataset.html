@@ -413,14 +413,6 @@ bp_df = nhanes(&quot;BPX_I&quot;) %&gt;%
 <pre class="r"><code>nutrient_df &lt;- nhanes('DR1TOT_I') %&gt;% 
    janitor::clean_names() %&gt;% 
    select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %&gt;% 
-    mutate(
-    dbd100 = as.factor(dbd100),
-    drqsprep = as.factor(drqsprep),
-    drqsdiet = as.factor(drqsdiet),
-    dr1_300 = as.factor(dr1_300),
-    drd340 = as.factor(drd340),
-    drd360 = as.factor(drd360)
-  ) %&gt;% 
   mutate(
     dbd100 = na_if(dbd100,&quot;9&quot;), 
     drqsprep = na_if(drqsprep, &quot;9&quot;),
@@ -487,7 +479,6 @@ bp_cholesterol_df = nhanes(&quot;BPQ_I&quot;) %&gt;%
   select(seqn, smq020)</code></pre>
 <pre><code>## Processing SAS dataset SMQ_I      ..</code></pre>
 <pre class="r"><code>questionnaire_full_df = list(bp_cholesterol_df, cv_health_df, consumer_behavior_df, health_status_df, diabetes_df, diet_behavior_df, food_security_df, insurance_df, activity_df, smoking_df) %&gt;% reduce(full_join, by = &quot;seqn&quot;) 
-questionnaire_full_df = questionnaire_full_df[complete.cases(questionnaire_full_df),] 
 
 questionnaire_numerical = questionnaire_full_df %&gt;% 
   select(seqn, cbd071, cbd121, cbd131, dbd895) %&gt;% 
@@ -499,25 +490,15 @@ questionnaire_numerical = questionnaire_full_df %&gt;%
 
 questionnaire_categorical = questionnaire_full_df %&gt;% 
   select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %&gt;% 
-  mutate(
-    bpq020 = as.factor(bpq020),
-    cdq001 = as.factor(cdq001),
-    hsd010 = as.factor(hsd010),
-    diq010 = as.factor(diq010),
-    dbq700 = as.factor(dbq700),
-    fsd032a = as.factor(fsd032a),
-    fsd032c = as.factor(fsd032c),
-    fsdhh = as.factor(fsdhh),
-    hiq270 = as.factor(hiq270),
-    paq605 = as.factor(paq605),
-    smq020 = as.factor(smq020)
-  ) %&gt;% 
   na_if(., 7) %&gt;% 
   na_if(., 9) %&gt;% 
   na_if(., &quot;.&quot;)</code></pre>
 <p>Join datasets</p>
-<pre class="r"><code>full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %&gt;% reduce(full_join, by = &quot;seqn&quot;) 
-full_data_final = full_data[complete.cases(full_data),]</code></pre>
+<pre class="r"><code>full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %&gt;% reduce(full_join, by = &quot;seqn&quot;)
+
+full_data_final = full_data[complete.cases(full_data),]
+
+write.csv(full_data, &quot;./full_data.csv&quot;)</code></pre>
 <p>Split into Training and Test Data</p>
 <pre class="r"><code>set.seed(13)
 training_data = full_data_final %&gt;% sample_frac(0.8)
