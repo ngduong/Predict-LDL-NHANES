@@ -15,9 +15,12 @@ library(splines)
 library(mgcv)
 library(ggplot2)
 library(pdp)
+library(purrr)
 library(earth)
 library(patchwork)
+library(ModelMetrics)
 library(nnet)
+library(microbenchmark)
 library(MASS) # ordinal response (iii)
 knitr::opts_chunk$set(
 	echo = TRUE,
@@ -36,42 +39,153 @@ theme_set(theme_minimal() + theme(legend.position = "bottom"))
 ```
 
 
+### Data import and preparation
+
 First, we import the created train and test datasets. Then, we can identify response variable and design matrices for both datasets.
 
 ```{r}
-#import data
-chol_train = read_csv("./training_data_final.csv")
-chol_test = read_csv("./test_data_final.csv")
+#import data and transform some variables into categorical 
+chol_train = read_csv("./training_data_final.csv") %>% dplyr::select(-seqn, -X1) %>% 
+  mutate(
+    bpq020 = as.factor(bpq020),
+    cdq001 = as.factor(cdq001),
+    hsd010 = as.factor(hsd010),
+    diq010 = as.factor(diq010),
+    dbq700 = as.factor(dbq700),
+    fsd032a = as.factor(fsd032a),
+    fsd032c = as.factor(fsd032c),
+    fsdhh = as.factor(fsdhh),
+    hiq270 = as.factor(hiq270),
+    paq605 = as.factor(paq605),
+    smq020 = as.factor(smq020),
+    dbd100 = as.factor(dbd100),
+    drqsprep = as.factor(drqsprep),
+    drqsdiet = as.factor(drqsdiet),
+    dr1_300 = as.factor(dr1_300),
+    drd340 = as.factor(drd340),
+    drd360 = as.factor(drd360)) %>% drop_na()
+
+chol_train1 = read_csv("./training_data_final.csv") %>% dplyr::select(-seqn, -X1)
+chol_test = read_csv("./test_data_final.csv") %>% dplyr::select(-seqn, -X1)
+
+chol_data = bind_rows(chol_test, chol_train1)
 
 #train data
 #design matrix 
-x_train <-model.matrix(lbdldl~.,chol_train)[,-1] 
-x_train2 <- chol_train %>% dplyr::select(-lbdldl)
+x_train <-model.matrix(lbdldl~.,data = chol_train)[,-1] 
 #vector of response
 y_train <- chol_train$lbdldl
 
 #test data
-x_test = sol_test %>% select(-lbdldl) %>% as.matrix() #design matrix
-y_test = sol_test %>% select(lbdldl) %>% as.matrix() #response vector
+x_test = chol_test %>% dplyr::select(-lbdldl) %>% as.matrix() #design matrix
+y_test = chol_test %>% dplyr::select(lbdldl) %>% as.matrix() #response vector
 ```
 
-Next, we can fit an elastic net on the training data 
+### Regularized Regression
+
+Next, we can try out different mixing percentages in an elastic net on the training data ($\alpha = 0$ as Ridge, $\alpha = 1$ as LASSO, and other mixing percentages in between).
+
 ```{r}
-trnCtrl = trainControl(
-             method = "repeatedCV",
-             number = 10,
-             repeats = 5)
+ctrl1 <-trainControl(method = "repeatedcv", number = 10, repeats = 10)
 
 set.seed(13)
-elastic_net = train(x_train, y_train,
+comp_mod_k = train(x_train, y_train,
                   method = "glmnet",
-                  tuneGrid = expand.grid(alpha = 0:1,
-                                           lambda = seq(-5, 2, length = 100)),
+                  tuneGrid = expand.grid(alpha = c(0, 0.2, 0.5, 0.7, 1),
+                                          lambda = exp(seq(-2, 5, length = 100))),
                   preProc = c("center","scale"),
                   trControl = ctrl1)
 
-plot(lasso_fit, xTrans =function(x)log(x))
+comp_mod_k$bestTune
+
+#plot 
+plot(comp_mod_k, xTrans = function(x)log(x))
+
+
+ctrl_mc <- trainControl(method = "LGOCV", # Leave Group Out CV
+                        number = 30)      # Number of folds/iterations
+
+set.seed(13)
+comp_mod_mc = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = c(0, 0.2, 0.5, 0.7, 1),
+                                         lambda = exp(seq(-2, 5, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_mc)
+
+comp_mod_mc$bestTune
+
+#plot 
+plot(comp_mod_mc, xTrans = function(x)log(x))
 ```
+
+Compare models' MSE
+```{r}
+model_list$mc <- NULL
+model_list$kfold <- NULL
+
+resamp <-resamples(list(kfold = comp_mod_kfold, 
+                        mc = comp_mod_mc))
+summary(resamp)
+
+bwplot(resamp, metric = "RMSE")
 ```
 
 
+We can compare the best model obtained from two different types of cross-validation (10-fold and Monte Carlo), as well as obtain the test error (using the test dataset)
+
+```{r}
+#list of coefficient estimates after shrinkage
+coeff_list = coef(comp_mod_k$finalModel, comp_mod_k$bestTune$lambda) 
+
+#number of non-zero coefficient estimates
+#length(which(coeff_list!=0))
+
+varImp(comp_mod_k)
+
+#apply trained model to test predictors data 
+pred_elastic = predict(elastic_net, x_test)
+#obtain the test error
+mse(y_test, pred_elastic)
+```
+
+
+### Clustering
+PCR
+PLS
+
+### GAM
+
+Using the results from `VarImp()` function, we could obtain a list of variables that are strong predictors of the outcome variable. We then use pairwise-scatterplots to explore the relationship between these variables and the outcome variable
+
+```{r}
+varImp(elastic_net)
+
+#get the variables in the design matrix
+x <- chol_train %>% dplyr::select(-lbdldl) %>% 
+  dplyr::select(dr1talco, lbxsapsi, lbxnepct, lbxsldsi, lbxmopct, lbxlypct, lbxhgb, bpxdi, cbd121, lbxhscrp, bmxwaist, lbxsgb, dr1tcaff, lbxsph, lbxsc3si, lbxsua) %>% 
+  dplyr::select_if(., is.numeric)
+  
+#plot pairwise scatterplot between variables and outcome variable 
+theme1 <-trellis.par.get()
+theme1$plot.symbol$col <-rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <-rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <-rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+featurePlot(x, y_train, plot = "scatter", labels =c("","Y"),
+            type =c("p"), layout =c(4, 4))
+```
+
+
+### Fit a generalized additive model (GAM) using all predictors
+```{r, warning = FALSE, message = FALSE}
+set.seed(7)
+#use gam 
+gam.m1 = gam(lbdldl~s(dr1talco) + s(lbxsapsi) + s(lbxnepct) + s(lbxsldsi) + s(lbxmopct) + s(lbxlypct)+ s(lbxhgb) + s(lbxsph) + s(bpxdi) + s(cbd121) + s(lbxhscrp) + s(bmxwaist) + s(lbxsgb) + s(dr1tcaff) + s(lbxsc3si) + s(lbxsua), data = chol_data)
+
+#anova(gam.m1, gam.m2, test = "F") 
+#since p-value is greater than 0.05, the smaller model (with more linear predictors) is "superior".
+
+summary(gam.m1)
