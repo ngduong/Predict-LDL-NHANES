@@ -16,48 +16,48 @@ Import and clean data from laboratory and examination files
 #response variable low-density cholesterol
 chol_df = nhanes("TRIGLY_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, lbdldl) 
+  dplyr::select(seqn, lbdldl) 
 
 #extract variables from laboratory datasets
 #albumin and creatinine
 alb_cr_df = nhanes("ALB_CR_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, urxuma, urxucr) 
+  dplyr::select(seqn, urxuma, urxucr) 
 
 #complete blood count with differentials
 blood_df = nhanes("CBC_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, lbxlypct, lbxmopct, lbxnepct, lbxhgb, lbxhct) 
+  dplyr::select(seqn, lbxlypct, lbxmopct, lbxnepct, lbxhgb, lbxhct) 
 
 #high sensitivity C-reactive protein
 crp_df = nhanes("HSCRP_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, lbxhscrp) 
+  dplyr::select(seqn, lbxhscrp) 
 
 #extract variables from standard biochemistry profiles
 biochem_df = nhanes("BIOPRO_I") %>% 
   janitor::clean_names() %>% 
- select(seqn, lbxsapsi, lbxsc3si, lbxsgl, lbxsgb, lbxsgtsi, lbxsldsi, lbxsph, lbxsksi, lbxstb, lbxsua) 
+  dplyr::select(seqn, lbxsapsi, lbxsc3si, lbxsgl, lbxsgb, lbxsgtsi, lbxsldsi, lbxsph, lbxsksi, lbxstb, lbxsua) 
 
 #extract variables from body measure profiles
 bm_df = nhanes("BMX_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, bmxbmi, bmxwaist)
+  dplyr::select(seqn, bmxbmi, bmxwaist)
 
 #variables from blood pressure
 bp_df = nhanes("BPX_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, bpxsy1, bpxsy2, bpxsy3, bpxdi1, bpxdi2, bpxdi3) %>%
-  mutate(bpxsy = rowMeans(select(., contains('bpxsy')), na.rm = TRUE),
-         bpxdi = rowMeans(select(., contains('bpxdi')), na.rm = TRUE)) %>% 
-  select(seqn, bpxsy, bpxdi)
+  dplyr::select(seqn, bpxsy1, bpxsy2, bpxsy3, bpxdi1, bpxdi2, bpxdi3) %>%
+  mutate(bpxsy = rowMeans(dplyr::select(., contains('bpxsy')), na.rm = TRUE),
+         bpxdi = rowMeans(dplyr::select(., contains('bpxdi')), na.rm = TRUE)) %>% 
+  dplyr::select(seqn, bpxsy, bpxdi)
 ```
 
 Dietary and nutrients data
 ```{r warning = FALSE, message = FALSE}
 nutrient_df <- nhanes('DR1TOT_I') %>% 
    janitor::clean_names() %>% 
-   select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %>% 
+   dplyr::select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %>% 
   mutate(
     dbd100 = na_if(dbd100,"9"), 
     drqsprep = na_if(drqsprep, "9"),
@@ -72,7 +72,7 @@ nutrient_df <- nhanes('DR1TOT_I') %>%
 
 supplement_df <- nhanes('DS1TOT_I') %>% 
   janitor::clean_names() %>% 
-  select(seqn, ds1dscnt, ds1ancnt)
+  dplyr::select(seqn, ds1dscnt, ds1ancnt)
 ```
 
 Demographics and questionnaire data 
@@ -80,55 +80,55 @@ Demographics and questionnaire data
 #extract variables from demographics data
 demographic_df = nhanes("DEMO_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %>% 
+  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %>% 
   filter(ridageyr > 17)
 
 #extract variables from different datasets within questionnaire
 bp_cholesterol_df = nhanes("BPQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, bpq020) %>% 
+  dplyr::select(seqn, bpq020) %>% 
   filter(bpq020 == 1 | bpq020 == 2)
 
 cv_health_df = nhanes("CDQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, cdq001)
+  dplyr::select(seqn, cdq001)
 
 consumer_behavior_df = nhanes("CBQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, cbd071, cbd121, cbd131)
+  dplyr::select(seqn, cbd071, cbd121, cbd131)
 
 health_status_df = nhanes("HSQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, hsd010)
+  dplyr::select(seqn, hsd010)
 
 diabetes_df = nhanes("DIQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, diq010)
+  dplyr::select(seqn, diq010)
 
 diet_behavior_df = nhanes("DBQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, dbq700, dbd895)
+  dplyr::select(seqn, dbq700, dbd895)
 
 food_security_df = nhanes("FSQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, fsd032a, fsd032c, fsdhh)
+  dplyr::select(seqn, fsd032a, fsd032c, fsdhh)
 
 insurance_df = nhanes("HIQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, hiq011, hiq270)
+  dplyr::select(seqn, hiq011, hiq270)
 
 activity_df = nhanes("PAQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, paq605)
+  dplyr::select(seqn, paq605)
 
 smoking_df = nhanes("SMQ_I") %>% 
   janitor::clean_names() %>% 
-  select(seqn, smq020)
+  dplyr::select(seqn, smq020)
 
 questionnaire_full_df = list(bp_cholesterol_df, cv_health_df, consumer_behavior_df, health_status_df, diabetes_df, diet_behavior_df, food_security_df, insurance_df, activity_df, smoking_df) %>% reduce(full_join, by = "seqn") 
 
 questionnaire_numerical = questionnaire_full_df %>% 
-  select(seqn, cbd071, cbd121, cbd131, dbd895) %>% 
+  dplyr::select(seqn, cbd071, cbd121, cbd131, dbd895) %>% 
   na_if(., 777777) %>% 
   na_if(., 999999) %>% 
   na_if(., ".") %>% 
@@ -136,7 +136,7 @@ questionnaire_numerical = questionnaire_full_df %>%
   na_if(., 9999)
 
 questionnaire_categorical = questionnaire_full_df %>% 
-  select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %>% 
+  dplyr::select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %>% 
   na_if(., 7) %>% 
   na_if(., 9) %>% 
   na_if(., ".")
@@ -148,16 +148,7 @@ full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df,
 
 full_data_final = full_data[complete.cases(full_data),]
 
-write.csv(full_data, "./full_data.csv")
+write.csv(full_data_final, "./full_data.csv")
 ```
 
-Split into Training and Test Data
-```{r}
-set.seed(13)
-training_data = full_data_final %>% sample_frac(0.8)
-test_data = full_data_final %>% sample_frac(0.2)
-
-write.csv(training_data, "./training_data_final.csv")
-write.csv(test_data, "./test_data_final.csv")
-```
 

@@ -373,46 +373,46 @@ summary {
 <pre class="r"><code>#response variable low-density cholesterol
 chol_df = nhanes(&quot;TRIGLY_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, lbdldl) </code></pre>
+  dplyr::select(seqn, lbdldl) </code></pre>
 <pre><code>## Processing SAS dataset TRIGLY_I   ..</code></pre>
 <pre class="r"><code>#extract variables from laboratory datasets
 #albumin and creatinine
 alb_cr_df = nhanes(&quot;ALB_CR_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, urxuma, urxucr) </code></pre>
+  dplyr::select(seqn, urxuma, urxucr) </code></pre>
 <pre><code>## Processing SAS dataset ALB_CR_I   ..</code></pre>
 <pre class="r"><code>#complete blood count with differentials
 blood_df = nhanes(&quot;CBC_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, lbxlypct, lbxmopct, lbxnepct, lbxhgb, lbxhct) </code></pre>
+  dplyr::select(seqn, lbxlypct, lbxmopct, lbxnepct, lbxhgb, lbxhct) </code></pre>
 <pre><code>## Processing SAS dataset CBC_I      ..</code></pre>
 <pre class="r"><code>#high sensitivity C-reactive protein
 crp_df = nhanes(&quot;HSCRP_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, lbxhscrp) </code></pre>
+  dplyr::select(seqn, lbxhscrp) </code></pre>
 <pre><code>## Processing SAS dataset HSCRP_I    ..</code></pre>
 <pre class="r"><code>#extract variables from standard biochemistry profiles
 biochem_df = nhanes(&quot;BIOPRO_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
- select(seqn, lbxsapsi, lbxsc3si, lbxsgl, lbxsgb, lbxsgtsi, lbxsldsi, lbxsph, lbxsksi, lbxstb, lbxsua) </code></pre>
+  dplyr::select(seqn, lbxsapsi, lbxsc3si, lbxsgl, lbxsgb, lbxsgtsi, lbxsldsi, lbxsph, lbxsksi, lbxstb, lbxsua) </code></pre>
 <pre><code>## Processing SAS dataset BIOPRO_I   ..</code></pre>
 <pre class="r"><code>#extract variables from body measure profiles
 bm_df = nhanes(&quot;BMX_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, bmxbmi, bmxwaist)</code></pre>
+  dplyr::select(seqn, bmxbmi, bmxwaist)</code></pre>
 <pre><code>## Processing SAS dataset BMX_I      ..</code></pre>
 <pre class="r"><code>#variables from blood pressure
 bp_df = nhanes(&quot;BPX_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, bpxsy1, bpxsy2, bpxsy3, bpxdi1, bpxdi2, bpxdi3) %&gt;%
-  mutate(bpxsy = rowMeans(select(., contains('bpxsy')), na.rm = TRUE),
-         bpxdi = rowMeans(select(., contains('bpxdi')), na.rm = TRUE)) %&gt;% 
-  select(seqn, bpxsy, bpxdi)</code></pre>
+  dplyr::select(seqn, bpxsy1, bpxsy2, bpxsy3, bpxdi1, bpxdi2, bpxdi3) %&gt;%
+  mutate(bpxsy = rowMeans(dplyr::select(., contains('bpxsy')), na.rm = TRUE),
+         bpxdi = rowMeans(dplyr::select(., contains('bpxdi')), na.rm = TRUE)) %&gt;% 
+  dplyr::select(seqn, bpxsy, bpxdi)</code></pre>
 <pre><code>## Processing SAS dataset BPX_I      ..</code></pre>
 <p>Dietary and nutrients data</p>
 <pre class="r"><code>nutrient_df &lt;- nhanes('DR1TOT_I') %&gt;% 
    janitor::clean_names() %&gt;% 
-   select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %&gt;% 
+   dplyr::select(seqn, dbd100, drqsprep, drqsdiet, dr1tnumf, dr1tkcal, dr1tprot, dr1tcarb, dr1tsugr, dr1tfibe, dr1ttfat, dr1tcaff, dr1talco, dr1_300, dr1_320z, dr1_320z, drd340, drd360) %&gt;% 
   mutate(
     dbd100 = na_if(dbd100,&quot;9&quot;), 
     drqsprep = na_if(drqsprep, &quot;9&quot;),
@@ -427,61 +427,61 @@ bp_df = nhanes(&quot;BPX_I&quot;) %&gt;%
 <pre><code>## Processing SAS dataset DR1TOT_I   ..</code></pre>
 <pre class="r"><code>supplement_df &lt;- nhanes('DS1TOT_I') %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, ds1dscnt, ds1ancnt)</code></pre>
+  dplyr::select(seqn, ds1dscnt, ds1ancnt)</code></pre>
 <pre><code>## Processing SAS dataset DS1TOT_I   ..</code></pre>
 <p>Demographics and questionnaire data</p>
 <pre class="r"><code>#extract variables from demographics data
 demographic_df = nhanes(&quot;DEMO_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %&gt;% 
+  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %&gt;% 
   filter(ridageyr &gt; 17)</code></pre>
 <pre><code>## Processing SAS dataset DEMO_I     ..</code></pre>
 <pre class="r"><code>#extract variables from different datasets within questionnaire
 bp_cholesterol_df = nhanes(&quot;BPQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, bpq020) %&gt;% 
+  dplyr::select(seqn, bpq020) %&gt;% 
   filter(bpq020 == 1 | bpq020 == 2)</code></pre>
 <pre><code>## Processing SAS dataset BPQ_I      ..</code></pre>
 <pre class="r"><code>cv_health_df = nhanes(&quot;CDQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, cdq001)</code></pre>
+  dplyr::select(seqn, cdq001)</code></pre>
 <pre><code>## Processing SAS dataset CDQ_I      ..</code></pre>
 <pre class="r"><code>consumer_behavior_df = nhanes(&quot;CBQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, cbd071, cbd121, cbd131)</code></pre>
+  dplyr::select(seqn, cbd071, cbd121, cbd131)</code></pre>
 <pre><code>## Processing SAS dataset CBQ_I      ..</code></pre>
 <pre class="r"><code>health_status_df = nhanes(&quot;HSQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, hsd010)</code></pre>
+  dplyr::select(seqn, hsd010)</code></pre>
 <pre><code>## Processing SAS dataset HSQ_I      ..</code></pre>
 <pre class="r"><code>diabetes_df = nhanes(&quot;DIQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, diq010)</code></pre>
+  dplyr::select(seqn, diq010)</code></pre>
 <pre><code>## Processing SAS dataset DIQ_I      ..</code></pre>
 <pre class="r"><code>diet_behavior_df = nhanes(&quot;DBQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, dbq700, dbd895)</code></pre>
+  dplyr::select(seqn, dbq700, dbd895)</code></pre>
 <pre><code>## Processing SAS dataset DBQ_I      ..</code></pre>
 <pre class="r"><code>food_security_df = nhanes(&quot;FSQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, fsd032a, fsd032c, fsdhh)</code></pre>
+  dplyr::select(seqn, fsd032a, fsd032c, fsdhh)</code></pre>
 <pre><code>## Processing SAS dataset FSQ_I      ..</code></pre>
 <pre class="r"><code>insurance_df = nhanes(&quot;HIQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, hiq011, hiq270)</code></pre>
+  dplyr::select(seqn, hiq011, hiq270)</code></pre>
 <pre><code>## Processing SAS dataset HIQ_I      ..</code></pre>
 <pre class="r"><code>activity_df = nhanes(&quot;PAQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, paq605)</code></pre>
+  dplyr::select(seqn, paq605)</code></pre>
 <pre><code>## Processing SAS dataset PAQ_I      ..</code></pre>
 <pre class="r"><code>smoking_df = nhanes(&quot;SMQ_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  select(seqn, smq020)</code></pre>
+  dplyr::select(seqn, smq020)</code></pre>
 <pre><code>## Processing SAS dataset SMQ_I      ..</code></pre>
 <pre class="r"><code>questionnaire_full_df = list(bp_cholesterol_df, cv_health_df, consumer_behavior_df, health_status_df, diabetes_df, diet_behavior_df, food_security_df, insurance_df, activity_df, smoking_df) %&gt;% reduce(full_join, by = &quot;seqn&quot;) 
 
 questionnaire_numerical = questionnaire_full_df %&gt;% 
-  select(seqn, cbd071, cbd121, cbd131, dbd895) %&gt;% 
+  dplyr::select(seqn, cbd071, cbd121, cbd131, dbd895) %&gt;% 
   na_if(., 777777) %&gt;% 
   na_if(., 999999) %&gt;% 
   na_if(., &quot;.&quot;) %&gt;% 
@@ -489,7 +489,7 @@ questionnaire_numerical = questionnaire_full_df %&gt;%
   na_if(., 9999)
 
 questionnaire_categorical = questionnaire_full_df %&gt;% 
-  select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %&gt;% 
+  dplyr::select(seqn, bpq020, cdq001, hsd010, diq010, dbq700, fsd032a, fsd032c, fsdhh, hiq270, paq605, smq020) %&gt;% 
   na_if(., 7) %&gt;% 
   na_if(., 9) %&gt;% 
   na_if(., &quot;.&quot;)</code></pre>
@@ -498,14 +498,7 @@ questionnaire_categorical = questionnaire_full_df %&gt;%
 
 full_data_final = full_data[complete.cases(full_data),]
 
-write.csv(full_data, &quot;./full_data.csv&quot;)</code></pre>
-<p>Split into Training and Test Data</p>
-<pre class="r"><code>set.seed(13)
-training_data = full_data_final %&gt;% sample_frac(0.8)
-test_data = full_data_final %&gt;% sample_frac(0.2)
-
-write.csv(training_data, &quot;./training_data_final.csv&quot;)
-write.csv(test_data, &quot;./test_data_final.csv&quot;)</code></pre>
+write.csv(full_data_final, &quot;./full_data.csv&quot;)</code></pre>
 
 
 
