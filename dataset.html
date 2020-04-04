@@ -433,7 +433,7 @@ bp_df = nhanes(&quot;BPX_I&quot;) %&gt;%
 <pre class="r"><code>#extract variables from demographics data
 demographic_df = nhanes(&quot;DEMO_I&quot;) %&gt;% 
   janitor::clean_names() %&gt;% 
-  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %&gt;% 
+  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, indfmpir) %&gt;% 
   filter(ridageyr &gt; 17)</code></pre>
 <pre><code>## Processing SAS dataset DEMO_I     ..</code></pre>
 <pre class="r"><code>#extract variables from different datasets within questionnaire
@@ -494,7 +494,7 @@ questionnaire_categorical = questionnaire_full_df %&gt;%
   na_if(., 9) %&gt;% 
   na_if(., &quot;.&quot;)</code></pre>
 <p>Join datasets</p>
-<pre class="r"><code>full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %&gt;% reduce(full_join, by = &quot;seqn&quot;)
+<pre class="r"><code>full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, demographic_df, questionnaire_numerical, questionnaire_categorical) %&gt;% reduce(full_join, by = &quot;seqn&quot;)
 
 full_data_final = full_data[complete.cases(full_data),]
 

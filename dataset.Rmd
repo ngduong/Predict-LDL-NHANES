@@ -80,7 +80,7 @@ Demographics and questionnaire data
 #extract variables from demographics data
 demographic_df = nhanes("DEMO_I") %>% 
   janitor::clean_names() %>% 
-  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, dmdeduc3, dmdeduc2, indfmpir) %>% 
+  dplyr::select(seqn, riagendr, ridageyr, ridreth1, ridreth3, dmdborn4, indfmpir) %>% 
   filter(ridageyr > 17)
 
 #extract variables from different datasets within questionnaire
@@ -144,7 +144,7 @@ questionnaire_categorical = questionnaire_full_df %>%
 
 Join datasets
 ```{r}
-full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, questionnaire_numerical, questionnaire_categorical) %>% reduce(full_join, by = "seqn")
+full_data = list(chol_df, alb_cr_df, biochem_df, blood_df, crp_df, bm_df, bp_df, nutrient_df, supplement_df, demographic_df, questionnaire_numerical, questionnaire_categorical) %>% reduce(full_join, by = "seqn")
 
 full_data_final = full_data[complete.cases(full_data),]
 
