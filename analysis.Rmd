@@ -45,7 +45,7 @@ First, we import the created train and test datasets. Then, we can identify resp
 
 ```{r}
 #import data and transform some variables into categorical 
-chol_train = read_csv("./training_data_final.csv") %>% dplyr::select(-seqn, -X1) %>% 
+chol_full = read_csv("./full_data.csv")  %>% 
   mutate(
     bpq020 = as.factor(bpq020),
     cdq001 = as.factor(cdq001),
@@ -65,105 +65,154 @@ chol_train = read_csv("./training_data_final.csv") %>% dplyr::select(-seqn, -X1)
     drd340 = as.factor(drd340),
     drd360 = as.factor(drd360)) %>% drop_na()
 
-chol_train1 = read_csv("./training_data_final.csv") %>% dplyr::select(-seqn, -X1)
-chol_test = read_csv("./test_data_final.csv") %>% dplyr::select(-seqn, -X1)
-
-chol_data = bind_rows(chol_test, chol_train1)
+set.seed(13)
+chol_train = chol_full %>% sample_frac(0.8) 
+chol_test = dplyr::anti_join(chol_full, chol_train, by = 'seqn') %>% dplyr::select(-seqn, -X1) 
+chol_train = chol_train %>% dplyr::select(-seqn, -X1) 
 
 #train data
 #design matrix 
 x_train <-model.matrix(lbdldl~.,data = chol_train)[,-1] 
 #vector of response
-y_train <- chol_train$lbdldl
+y_train <- chol_train$lbdldl %>% as.vector()
 
 #test data
-x_test = chol_test %>% dplyr::select(-lbdldl) %>% as.matrix() #design matrix
+x_test = model.matrix(lbdldl~.,data = chol_test)[,-1]  #design matrix
 y_test = chol_test %>% dplyr::select(lbdldl) %>% as.matrix() #response vector
 ```
 
-### Regularized Regression
-
-Next, we can try out different mixing percentages in an elastic net on the training data ($\alpha = 0$ as Ridge, $\alpha = 1$ as LASSO, and other mixing percentages in between).
+### Linear Regression
 
 ```{r}
 ctrl1 <-trainControl(method = "repeatedcv", number = 10, repeats = 10)
 
+set.seed(7)
+lm_fit <-train(x_train, y_train,
+               method = "lm",
+               trControl = ctrl1)
+
+pred_lm <-predict(lm_fit$finalModel, newdata = data.frame(x_test))
+
+#get test error from trained model
+mse(y_test, pred_lm)
+```
+
+### Regularized Regression
+
+Next, we can try out different mixing percentages in an elastic net on the training data ($\alpha = 0$ as Ridge, $\alpha = 1$ as LASSO, and other mixing percentages in between) Monte Carlo (or Leave-Group-Out-Cross-Validation).
+
+```{r}
 set.seed(13)
-comp_mod_k = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = c(0, 0.2, 0.5, 0.7, 1),
-                                          lambda = exp(seq(-2, 5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl1)
-
-comp_mod_k$bestTune
-
-#plot 
-plot(comp_mod_k, xTrans = function(x)log(x))
-
-
 ctrl_mc <- trainControl(method = "LGOCV", # Leave Group Out CV
-                        number = 30)      # Number of folds/iterations
+                        number = 10, p = 0.8)      # Number of folds/iterations
 
 set.seed(13)
-comp_mod_mc = train(x_train, y_train,
+ridge_mc = train(x_train, y_train,
                   method = "glmnet",
-                  tuneGrid = expand.grid(alpha = c(0, 0.2, 0.5, 0.7, 1),
-                                         lambda = exp(seq(-2, 5, length = 100))),
+                  tuneGrid = expand.grid(alpha = 0,
+                                         lambda = exp(seq(2, 5, length = 100))),
                   preProc = c("center","scale"),
                   trControl = ctrl_mc)
 
-comp_mod_mc$bestTune
+ridge_mc$bestTune
 
 #plot 
-plot(comp_mod_mc, xTrans = function(x)log(x))
+ggplot(ridge_mc, highlight = TRUE)
+
+set.seed(13)
+lasso_mc = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 1,
+                                         lambda = exp(seq(-1, 2, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_mc)
+
+lasso_mc$bestTune
+
+#plot 
+ggplot(lasso_mc, highlight = TRUE)
+
+set.seed(13)
+elastic_mc = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = c(0.2, 0.4, 0.6, 0.8),
+                                         lambda = exp(seq(0.5, 3, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_mc)
+
+ggplot(elastic_mc, highlight = TRUE)
+
+coeff_list = coef(elastic_mc$finalModel, elastic_mc$bestTune$lambda) 
+
+#number of non-zero coefficient estimates
+length(which(as.matrix(coeff_list)!=0))
+
+pred_elastic_mc = predict(elastic_mc, x_test)
+#obtain the test error
+mse(y_test, pred_elastic_mc)
+```
+
+After selecting the variables, we can also try some dimension-reducing techniques such as PCR, use Monte Carlo cross-validation to tune model
+
+```{r}
+#PCR Monte Carlo
+set.seed(13)
+pcr_mc = train(x_train, y_train,
+                method = "pcr",
+                tuneGrid = data.frame(ncomp = 1:61),
+                preProc = c("center","scale"),
+                trControl = ctrl_mc)
+
+pcr_mc$bestTune$ncomp
+
+ggplot(pcr_mc, highlight = TRUE) + theme_bw()
+
+# need to preprocess your data when using predict()
+trans <-preProcess(x_train, method = c("center", "scale"))
+
+#fit trained model on test data
+pred_pcr_mc <-predict(pcr_mc$finalModel, 
+                   newdata = predict(trans, x_test),
+                   ncomp = pcr_mc$bestTune$ncomp)
+
+mse(y_test, pred_pcr_mc)
 ```
 
 Compare models' MSE
+
 ```{r}
-model_list$mc <- NULL
-model_list$kfold <- NULL
+set.seed(13)
+resamp_mc <-resamples(list(elastic_mc = elastic_mc, 
+                        lasso_mc = lasso_mc,
+                        ridge_mc = ridge_mc,
+                        pcr_mc = pcr_mc))
+summary(resamp_mc)
 
-resamp <-resamples(list(kfold = comp_mod_kfold, 
-                        mc = comp_mod_mc))
-summary(resamp)
-
-bwplot(resamp, metric = "RMSE")
+bwplot(resamp_mc, metric = "RMSE")
 ```
-
 
 We can compare the best model obtained from two different types of cross-validation (10-fold and Monte Carlo), as well as obtain the test error (using the test dataset)
 
-```{r}
+```{r message = FALSE, warning = FALSE}
 #list of coefficient estimates after shrinkage
 coeff_list = coef(comp_mod_k$finalModel, comp_mod_k$bestTune$lambda) 
 
-#number of non-zero coefficient estimates
-#length(which(coeff_list!=0))
-
-varImp(comp_mod_k)
-
 #apply trained model to test predictors data 
-pred_elastic = predict(elastic_net, x_test)
+pred_mc = predict(mc, x_test)
 #obtain the test error
-mse(y_test, pred_elastic)
+mse(y_test, pred_mc)
 ```
-
-
-### Clustering
-PCR
-PLS
 
 ### GAM
 
 Using the results from `VarImp()` function, we could obtain a list of variables that are strong predictors of the outcome variable. We then use pairwise-scatterplots to explore the relationship between these variables and the outcome variable
 
 ```{r}
-varImp(elastic_net)
+varImp(elastic_mc)
 
 #get the variables in the design matrix
 x <- chol_train %>% dplyr::select(-lbdldl) %>% 
-  dplyr::select(dr1talco, lbxsapsi, lbxnepct, lbxsldsi, lbxmopct, lbxlypct, lbxhgb, bpxdi, cbd121, lbxhscrp, bmxwaist, lbxsgb, dr1tcaff, lbxsph, lbxsc3si, lbxsua) %>% 
+  dplyr::select(ridageyr, diq010, lbxlypct, dr1talco, bpxdi, lbxnepct, lbxhscrp, lbxsgb, lbxhct, bpq020, lbxsapsi, dbq700, lbxhgb, fsdhh, lbxsldsi) %>% 
   dplyr::select_if(., is.numeric)
   
 #plot pairwise scatterplot between variables and outcome variable 
@@ -175,7 +224,7 @@ theme1$plot.line$lwd <- 2
 theme1$strip.background$col <-rgb(.0, .2, .6, .2)
 trellis.par.set(theme1)
 featurePlot(x, y_train, plot = "scatter", labels =c("","Y"),
-            type =c("p"), layout =c(4, 4))
+            type =c("p"), layout =c(4, 3))
 ```
 
 
@@ -183,9 +232,14 @@ featurePlot(x, y_train, plot = "scatter", labels =c("","Y"),
 ```{r, warning = FALSE, message = FALSE}
 set.seed(7)
 #use gam 
-gam.m1 = gam(lbdldl~s(dr1talco) + s(lbxsapsi) + s(lbxnepct) + s(lbxsldsi) + s(lbxmopct) + s(lbxlypct)+ s(lbxhgb) + s(lbxsph) + s(bpxdi) + s(cbd121) + s(lbxhscrp) + s(bmxwaist) + s(lbxsgb) + s(dr1tcaff) + s(lbxsc3si) + s(lbxsua), data = chol_data)
+gam.m1 = gam(lbdldl~s(ridageyr) + diq010 + s(lbxlypct) + s(dr1talco) + s(bpxdi) + s(lbxnepct)+ s(lbxhscrp) + s(lbxsgb) + s(lbxhct) + bpq020 + s(lbxsapsi) + dbq700 + s(lbxhgb) + fsdhh + s(lbxsldsi), data = chol_full)
 
 #anova(gam.m1, gam.m2, test = "F") 
 #since p-value is greater than 0.05, the smaller model (with more linear predictors) is "superior".
 
 summary(gam.m1)
+
+summary(gam.m1)
+
+par(mfrow = c(3,4))
+plot(gam.m1, se = TRUE, pch=19, cex=0.25, scheme=1, col='#FF8000' , shade=T, shade.col='gray90')
