@@ -18,6 +18,7 @@ library(pdp)
 library(purrr)
 library(earth)
 library(patchwork)
+library(patchwork)
 library(ModelMetrics)
 library(nnet)
 library(microbenchmark)
@@ -63,16 +64,20 @@ chol_full = read_csv("./full_data.csv")  %>%
     drqsdiet = as.factor(drqsdiet),
     dr1_300 = as.factor(dr1_300),
     drd340 = as.factor(drd340),
-    drd360 = as.factor(drd360)) %>% drop_na()
+    drd360 = as.factor(drd360),
+    riagendr = as.factor(riagendr),
+    ridreth1 = as.factor(ridreth1),
+    ridreth3 = as.factor(ridreth3),
+    dmdborn4 = as.factor(dmdborn4)) %>% drop_na()
 
 set.seed(13)
 chol_train = chol_full %>% sample_frac(0.8) 
 chol_test = dplyr::anti_join(chol_full, chol_train, by = 'seqn') %>% dplyr::select(-seqn, -X1) 
-chol_train = chol_train %>% dplyr::select(-seqn, -X1) 
+chol_train = chol_train %>% dplyr::select(-seqn, -X1)
 
 #train data
 #design matrix 
-x_train <-model.matrix(lbdldl~.,data = chol_train)[,-1] 
+x_train <-model.matrix(lbdldl~.,data = chol_train)[,-1]
 #vector of response
 y_train <- chol_train$lbdldl %>% as.vector()
 
@@ -81,31 +86,163 @@ x_test = model.matrix(lbdldl~.,data = chol_test)[,-1]  #design matrix
 y_test = chol_test %>% dplyr::select(lbdldl) %>% as.matrix() #response vector
 ```
 
+### EDA/Visualization
+
+First, we want to take a look at some key variables in the dataset. 
+
+We can look at the distribution of our response variable 
+
+```{r}
+chol_full %>% ggplot(aes(x = lbdldl)) + geom_bar(fill = 'blue', alpha = 0.5)
+```
+
+There are some outliers in the upper tail but otherwise the distribution looks normal.
+
+We can try to see whether the cholesterol level is affected by some categorical demographic variables such as gender, race, immigration status
+
+
+```{r}
+chol_cat_dem = chol_full %>% dplyr::select(dmdborn4, ridreth3, riagendr, lbdldl) %>% 
+  mutate(Cholesterol = lbdldl,
+         Immigration =  recode(dmdborn4, "1" = "US-born", "2" = "Immigrant"),
+         Race = recode(ridreth3, "1" = "Mexican American", "2" = "Other Hispanic", "3" = "White", "4" = "Black", "6" = "Asian", "7" = "Other/Multiracial"),
+         Gender = recode(riagendr, "1" = "Male", "2" = "Female")) %>% 
+  dplyr::select(-lbdldl, -ridreth3, - riagendr, -dmdborn4)
+         
+chol_cat_dem %>% gather(variable, value, -Cholesterol) %>%
+  ggplot(aes(factor(value), Cholesterol, fill = factor(value))) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
+  theme(panel.spacing = unit(0, "lines"),
+        panel.border = element_rect(fill = NA),
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none",
+        strip.placement = "outside")
+```
+
+We can also take a look at questionnaire questions that might be related to a person's cholesterol level, e.g., whether they are on some special diet, their self-perceived general health condition, and whether they have been told to have high blood pressure.
+
+```{r}
+chol_cat_quest = chol_full %>% dplyr::select(hsd010, bpq020,drqsdiet, lbdldl) %>% 
+  mutate(Cholesterol = lbdldl,
+         Health =  recode(hsd010, "1" = "Excellent", "2" = "Very good", "3" = "Good", "4" = "Fair", "5" = "Poor"),
+         Hypertension = recode(bpq020, "1" = "Yes", "2" = "No"),
+         Diet = recode(drqsdiet, "1" = "Yes", "2" = "No"))%>%
+  dplyr::select(-hsd010, -bpq020, -drqsdiet, -lbdldl)
+
+chol_cat_quest %>% gather(variable, value, -Cholesterol) %>%
+  ggplot(aes(fct_reorder(value,Cholesterol, .desc=FALSE), Cholesterol, fill = factor(value))) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
+  theme(panel.spacing = unit(0, "lines"),
+        panel.border = element_rect(fill = NA),
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none",
+        strip.placement = "outside")
+```
+
+Some of these variables might be important in explaining/predicting the cholesterol, and some might have non-linear/complicated relationships with the outcome variables. We will explore more in the next steps.
+
 ### Linear Regression
 
 ```{r}
-ctrl1 <-trainControl(method = "repeatedcv", number = 10, repeats = 10)
+ctrl_kfold <-trainControl(method = "repeatedcv", number = 10, repeats = 15)
 
-set.seed(7)
-lm_fit <-train(x_train, y_train,
+set.seed(13)
+lm_kfold <-train(x_train, y_train,
                method = "lm",
-               trControl = ctrl1)
+               trControl = ctrl_kfold)
 
-pred_lm <-predict(lm_fit$finalModel, newdata = data.frame(x_test))
+#pred_lm_kfold <-predict(lm_kfold$finalModel, newdata = data.frame(x_test))
 
 #get test error from trained model
-mse(y_test, pred_lm)
+#mse(y_test, pred_lm_kfold)
 ```
 
 ### Regularized Regression
 
-Next, we can try out different mixing percentages in an elastic net on the training data ($\alpha = 0$ as Ridge, $\alpha = 1$ as LASSO, and other mixing percentages in between) Monte Carlo (or Leave-Group-Out-Cross-Validation).
+Next, we can try out LASSO, ridge, as well as different mixing percentages in an elastic net on the training data, using 5-fold cross validation to tune the model.
 
 ```{r}
 set.seed(13)
-ctrl_mc <- trainControl(method = "LGOCV", # Leave Group Out CV
-                        number = 10, p = 0.8)      # Number of folds/iterations
+ridge_k = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 0,
+                                         lambda = exp(seq(1, 5, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_kfold)
 
+a = ggplot(ridge_k, highlight = TRUE)
+
+set.seed(13)
+lasso_k = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 1,
+                                         lambda = exp(seq(-1, 1.5, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_kfold)
+
+lasso_k$bestTune
+coeff_list_k = coef(lasso_k$finalModel, lasso_k$bestTune$lambda) 
+
+#number of non-zero coefficient estimates
+length(which(as.matrix(coeff_list_k)!=0))
+
+#plot 
+b = ggplot(lasso_k, highlight = TRUE)
+
+pred_lasso_k = predict(lasso_k, x_test)
+#obtain the test error
+mse(y_test, pred_lasso_k)
+
+#Elastic net 
+set.seed(13)
+elastic_net_k = train(x_train, y_train,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = c(0.2, 0.4, 0.6, 0.8),
+                                         lambda = exp(seq(-0.5, 2.5, length = 100))),
+                  preProc = c("center","scale"),
+                  trControl = ctrl_kfold)
+c = ggplot(elastic_net_k, highlight = TRUE)
+```
+
+After trying regularized regression, we can also try some dimension-reducing techniques such as PCR, and continue using 10-fold cross-validation to tune the model.
+
+```{r}
+set.seed(13)
+pcr_k = train(x_train, y_train,
+                method = "pcr",
+                tuneGrid = data.frame(ncomp = 1:61),
+                preProc = c("center","scale"),
+                trControl = ctrl_kfold)
+```
+
+```{r}
+set.seed(13)
+resamp_k <-resamples(list(elastic_net_kfold = elastic_net_k, 
+                        lasso_kfold = lasso_k,
+                        ridge_kfold = ridge_k,
+                        pcr_kfold = pcr_k,
+                        lm_kfold = lm_kfold))
+```
+
+Monte Carlo (or Leave-Group-Out-Cross-Validation).
+
+```{r}
+ctrl_mc <- trainControl(method = "LGOCV", # Leave Group Out CV
+                        number = 150, p = 0.9) 
+set.seed(13)
+lm_mc <-train(x_train, y_train,
+               method = "lm",
+               trControl = ctrl_mc)
+```
+
+
+```{r}  
 set.seed(13)
 ridge_mc = train(x_train, y_train,
                   method = "glmnet",
@@ -113,43 +250,27 @@ ridge_mc = train(x_train, y_train,
                                          lambda = exp(seq(2, 5, length = 100))),
                   preProc = c("center","scale"),
                   trControl = ctrl_mc)
-
-ridge_mc$bestTune
-
-#plot 
-ggplot(ridge_mc, highlight = TRUE)
+d = ggplot(ridge_mc, highlight = TRUE)
 
 set.seed(13)
 lasso_mc = train(x_train, y_train,
                   method = "glmnet",
                   tuneGrid = expand.grid(alpha = 1,
-                                         lambda = exp(seq(-1, 2, length = 100))),
+                                         lambda = exp(seq(-1, 1.5, length = 100))),
                   preProc = c("center","scale"),
                   trControl = ctrl_mc)
-
-lasso_mc$bestTune
-
-#plot 
-ggplot(lasso_mc, highlight = TRUE)
+e = ggplot(lasso_mc, highlight = TRUE)
 
 set.seed(13)
 elastic_mc = train(x_train, y_train,
                   method = "glmnet",
                   tuneGrid = expand.grid(alpha = c(0.2, 0.4, 0.6, 0.8),
-                                         lambda = exp(seq(0.5, 3, length = 100))),
+                                         lambda = exp(seq(0,3, length = 100))),
                   preProc = c("center","scale"),
                   trControl = ctrl_mc)
+f = ggplot(elastic_mc, highlight = TRUE)
 
-ggplot(elastic_mc, highlight = TRUE)
-
-coeff_list = coef(elastic_mc$finalModel, elastic_mc$bestTune$lambda) 
-
-#number of non-zero coefficient estimates
-length(which(as.matrix(coeff_list)!=0))
-
-pred_elastic_mc = predict(elastic_mc, x_test)
-#obtain the test error
-mse(y_test, pred_elastic_mc)
+d+e+f
 ```
 
 After selecting the variables, we can also try some dimension-reducing techniques such as PCR, use Monte Carlo cross-validation to tune model
@@ -162,20 +283,6 @@ pcr_mc = train(x_train, y_train,
                 tuneGrid = data.frame(ncomp = 1:61),
                 preProc = c("center","scale"),
                 trControl = ctrl_mc)
-
-pcr_mc$bestTune$ncomp
-
-ggplot(pcr_mc, highlight = TRUE) + theme_bw()
-
-# need to preprocess your data when using predict()
-trans <-preProcess(x_train, method = c("center", "scale"))
-
-#fit trained model on test data
-pred_pcr_mc <-predict(pcr_mc$finalModel, 
-                   newdata = predict(trans, x_test),
-                   ncomp = pcr_mc$bestTune$ncomp)
-
-mse(y_test, pred_pcr_mc)
 ```
 
 Compare models' MSE
@@ -183,38 +290,70 @@ Compare models' MSE
 ```{r}
 set.seed(13)
 resamp_mc <-resamples(list(elastic_mc = elastic_mc, 
-                        lasso_mc = lasso_mc,
-                        ridge_mc = ridge_mc,
-                        pcr_mc = pcr_mc))
+                           lasso_mc = lasso_mc,
+                           ridge_mc = ridge_mc,
+                           pcr_mc = pcr_mc,
+                           lm_mc = lm_mc))
 summary(resamp_mc)
-
-bwplot(resamp_mc, metric = "RMSE")
 ```
 
-We can compare the best model obtained from two different types of cross-validation (10-fold and Monte Carlo), as well as obtain the test error (using the test dataset)
+Visualization of models obtained by different models and cross-validation techniques 
 
-```{r message = FALSE, warning = FALSE}
-#list of coefficient estimates after shrinkage
-coeff_list = coef(comp_mod_k$finalModel, comp_mod_k$bestTune$lambda) 
+```{r}
+resamp_mc_df = resamp_mc[[2]] %>% as_tibble() %>% dplyr::select(ends_with("RMSE")) %>%
+  separate(1, into = c("Elastic Net"), sep = '~') %>% 
+  separate(2, into = c("LASSO"), sep = '~') %>% 
+  separate(3, into = c("Ridge"), sep = '~') %>% 
+  separate(4, into = c("PCR"), sep = '~') %>% 
+  separate(5, into = c("Linear model"), sep = '~') %>%
+  pivot_longer(1:5,names_to = "model", values_to = "RMSE") %>% 
+  mutate(RMSE = as.numeric(RMSE),
+         cv_method = "Monte Carlo CV")
 
-#apply trained model to test predictors data 
-pred_mc = predict(mc, x_test)
-#obtain the test error
-mse(y_test, pred_mc)
+resamp_k_df = resamp_k[[2]] %>% as_tibble() %>% dplyr::select(ends_with("RMSE")) %>%
+  separate(1, into = c("Elastic Net"), sep = '~') %>% 
+  separate(2, into = c("LASSO"), sep = '~') %>% 
+  separate(3, into = c("Ridge"), sep = '~') %>% 
+  separate(4, into = c("PCR"), sep = '~') %>% 
+  separate(5, into = c("Linear model"), sep = '~') %>%
+  pivot_longer(1:5,names_to = "model", values_to = "RMSE") %>% 
+  mutate(RMSE = as.numeric(RMSE),
+         cv_method = "5-fold CV") 
+
+resamp = rbind(resamp_mc_df, resamp_k_df)
+
+resamp %>% ggplot(                                         
+  aes(x = fct_reorder(model,RMSE, .desc=FALSE),
+      y = RMSE, fill = model)) +
+  geom_violin(alpha = 0.7, draw_quantiles = 0.5) +
+  #coord_flip() +
+  labs(
+    title = "Distribution of Cross-validated RMSE across models by two CV methods",
+    y = "Cross-validated RMSE") +
+ facet_grid(~cv_method) + 
+ theme(axis.title.x= element_blank(), 
+       axis.text.x=element_blank(), 
+       legend.position = "bottom",
+       plot.title = element_text(hjust = 0.5, size=10, face='bold'),
+       legend.title = element_blank())
 ```
+
+We can compare the best model obtained from two different types of cross-validation (5-fold and Monte Carlo), as well as obtain the test error (using the test dataset)
 
 ### GAM
 
 Using the results from `VarImp()` function, we could obtain a list of variables that are strong predictors of the outcome variable. We then use pairwise-scatterplots to explore the relationship between these variables and the outcome variable
 
 ```{r}
-varImp(elastic_mc)
+varImp(lasso_k)
+```
 
+```{r eval = FALSE}
 #get the variables in the design matrix
-x <- chol_train %>% dplyr::select(-lbdldl) %>% 
-  dplyr::select(ridageyr, diq010, lbxlypct, dr1talco, bpxdi, lbxnepct, lbxhscrp, lbxsgb, lbxhct, bpq020, lbxsapsi, dbq700, lbxhgb, fsdhh, lbxsldsi) %>% 
+x_train_gam <- chol_train %>% dplyr::select(-lbdldl) %>% 
+  dplyr::select(ridageyr, diq010, dr1talco, bpxdi, lbxlypct, lbxnepct, lbxhscrp, lbxsgb, lbxsapsi, bpq020, lbxhct, lbxhgb, dbq700, fsdhh, riagendr, lbxsua, lbxsldsi) %>% 
   dplyr::select_if(., is.numeric)
-  
+
 #plot pairwise scatterplot between variables and outcome variable 
 theme1 <-trellis.par.get()
 theme1$plot.symbol$col <-rgb(.2, .4, .2, .5)
@@ -223,21 +362,19 @@ theme1$plot.line$col <-rgb(.8, .1, .1, 1)
 theme1$plot.line$lwd <- 2
 theme1$strip.background$col <-rgb(.0, .2, .6, .2)
 trellis.par.set(theme1)
-featurePlot(x, y_train, plot = "scatter", labels =c("","Y"),
-            type =c("p"), layout =c(4, 3))
+featurePlot(x_train_gam, y_train, plot = "scatter", labels =c("","Y"),
+            type =c("p"), layout =c(4, 4))
 ```
 
 
 ### Fit a generalized additive model (GAM) using all predictors
-```{r, warning = FALSE, message = FALSE}
+```{r, eval = FALSE,warning = FALSE, message = FALSE}
 set.seed(7)
 #use gam 
 gam.m1 = gam(lbdldl~s(ridageyr) + diq010 + s(lbxlypct) + s(dr1talco) + s(bpxdi) + s(lbxnepct)+ s(lbxhscrp) + s(lbxsgb) + s(lbxhct) + bpq020 + s(lbxsapsi) + dbq700 + s(lbxhgb) + fsdhh + s(lbxsldsi), data = chol_full)
 
 #anova(gam.m1, gam.m2, test = "F") 
 #since p-value is greater than 0.05, the smaller model (with more linear predictors) is "superior".
-
-summary(gam.m1)
 
 summary(gam.m1)
 
