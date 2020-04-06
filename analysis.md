@@ -3,12 +3,55 @@ Analysis
 Ngoc Duong
 4/2/2020
 
-### Data import and preparation
+### Introduction
 
-First, we import the created train and test datasets. Then, we can
-identify response variable and design matrices for both datasets.
+Low-density lipoprotein (LDL) is a group of lipoprotein that transports
+fat molecules around the body. Levels of low-density lipoprotein
+cholesterol (LDL-C) has historically been used as future clinical
+predictors of cardiovascular events, in particular the risk of
+myocardial infarction. Studies have found that reductions in the number
+of myocardial infarction and coronary heart diseases were concurrent
+with a reduction in LDL-C concentration \[1\]. LDL-C is also associated
+with other cardiovascular diseases. A 2018 prospective cohort study by
+Zhao et al. linked levels of oxidized-low density lipoprotein to
+premature coronary artery disease \[5\]. A 2018 retrospective cohort
+study by Pokharel et al. found that small dense LDL-C predicts incident
+diabetes mellitus \[6\]. Therefore, understanding what might contribute
+to high levels of LDL among people living in America is important as it
+may offer leads to preventive measures for cardiovascular diseases
+through controlling LDL-C levels. In this project, I aim to use data
+obtained from NHANES 2015-2016 and apply statistical learning techniques
+to obtain a LDL-C predictive model with low error as well as
+understanding the underlying relationships between certain predictors
+and LDL-C.
+
+### Data
+
+Data were obtained from NHANES 2015-2016, a public survey data source
+provided by the CDC. The response variable is low-density lipoprotein
+(LDL-C). The design matrix is made up of three smaller components. These
+represent the following categories: demographics and questionnaire
+(income- and health-related), diets and nutrients, and laboratory and
+physical examination. There are 63 total predictor variables, among
+which 21 are categorical predictors, all from the former two categories
+(socio-economic determinants of health). The remaining 42 variables are
+numerical, which are mostly diet, nutrients, lab and physical
+examination data. The inclusion of these variables in the final data was
+based on some preliminary knowledge or assumption of their relation to
+the outcome variable.
+
+When cleaning the data, we made categorical variables factors, and
+treated answers such as “Don’t know” and “Refused to answer” as NA
+variables. For the sake of simplicity, we did not impute but only looked
+at complete cases (i.e., people who have data on all 63 predictors of
+interest), although this means we already made a big assumption that all
+the missing data were completely at random. The final dataset contains
+661 subjects. I then split the data into a training set (80% of original
+data) and a held-out/validation set (the remaining
+20%).
 
 ``` r
+#First, we import the created train and test datasets. Then, we can identify response variable and design matrices for both datasets
 #import data and transform some variables into categorical 
 chol_full = read_csv("./full_data.csv")  %>% 
   mutate(
@@ -33,16 +76,7 @@ chol_full = read_csv("./full_data.csv")  %>%
     ridreth1 = as.factor(ridreth1),
     ridreth3 = as.factor(ridreth3),
     dmdborn4 = as.factor(dmdborn4)) %>% drop_na()
-```
 
-    ## Parsed with column specification:
-    ## cols(
-    ##   .default = col_double()
-    ## )
-
-    ## See spec(...) for full column specifications.
-
-``` r
 set.seed(13)
 chol_train = chol_full %>% sample_frac(0.8) 
 chol_test = dplyr::anti_join(chol_full, chol_train, by = 'seqn') %>% dplyr::select(-seqn, -X1) 
@@ -59,406 +93,245 @@ x_test = model.matrix(lbdldl~.,data = chol_test)[,-1]  #design matrix
 y_test = chol_test %>% dplyr::select(lbdldl) %>% as.matrix() #response vector
 ```
 
-### EDA/Visualization
+### Exploratory data analysis
 
-First, we want to take a look at some key variables in the dataset.
+First, I wanted to look at some key variables in the dataset. A barplot
+of the response variable - low-density lipoprotein (LDL) shows that
+there are some outliers in the upper tail but otherwise the distribution
+looks normal. From Figure 1, we can see that LDL does not seem to differ
+much by self-perception of health, sex, or race (although other/mixed
+race tend to have high LDL on average). Other interesting observations
+could be: immigrants and people who do not have hypertension tend to
+have slightly higher LDL, while people on special diet have lower LDL on
+average.
 
-We can look at the distribution of our response
-variable
+### Models
 
-``` r
-chol_full %>% ggplot(aes(x = lbdldl)) + geom_bar(fill = 'blue', alpha = 0.5)
-```
+I did a linear model regressing LDL on all predictors as the standard
+model. Then I looked at regularized linear models to either determine
+the importance of some predictor variables/select features. The
+shrinkage methods I looked at were ridge regression, the LASSO, and
+elastic net (considering four different mixing percentages: 0.2, 0.4,
+0.6, and 0.8). I also included a dimension-reduction technique (PCR) to
+compare their predictive ability.
 
-<img src="analysis_files/figure-gfm/unnamed-chunk-2-1.png" width="90%" />
-
-There are some outliers in the upper tail but otherwise the distribution
-looks normal.
-
-We can try to see whether the cholesterol level is affected by some
-categorical demographic variables such as gender, race, immigration
-status
-
-``` r
-chol_cat_dem = chol_full %>% dplyr::select(dmdborn4, ridreth3, riagendr, lbdldl) %>% 
-  mutate(Cholesterol = lbdldl,
-         Immigration =  recode(dmdborn4, "1" = "US-born", "2" = "Immigrant"),
-         Race = recode(ridreth3, "1" = "Mexican American", "2" = "Other Hispanic", "3" = "White", "4" = "Black", "6" = "Asian", "7" = "Other/Multiracial"),
-         Gender = recode(riagendr, "1" = "Male", "2" = "Female")) %>% 
-  dplyr::select(-lbdldl, -ridreth3, - riagendr, -dmdborn4)
-         
-chol_cat_dem %>% gather(variable, value, -Cholesterol) %>%
-  ggplot(aes(factor(value), Cholesterol, fill = factor(value))) +
-  geom_boxplot() +
-  facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
-  theme(panel.spacing = unit(0, "lines"),
-        panel.border = element_rect(fill = NA),
-        strip.background = element_blank(),
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "none",
-        strip.placement = "outside")
-```
-
-<img src="analysis_files/figure-gfm/unnamed-chunk-3-1.png" width="90%" />
-
-We can also take a look at questionnaire questions that might be related
-to a person’s cholesterol level, e.g., whether they are on some special
-diet, their self-perceived general health condition, and whether they
-have been told to have high blood
-pressure.
+To select the best tuning parameter/linear combinations of predictors
+for each model, I used 10-fold repeated cross-validation and Monte-Carlo
+cross-valuation (Leave-Group-Out-Cross-Validation). The 10-fold
+cross-validation was repeated 5 times, whereas Monte-Carlo resampled 50
+times at p = 0.9 (the train:test split being 9:1) to make the two
+cross-validation conditions as similar as possible (50 train/test splits
+each at 9:1 train:test ratio). However, the workings of each CV method
+is different. Repeated 10-fold CV randomly divides the data into 10
+equal-sized blocks of data, then each blocks is left out one by one and
+serve to test the prediction ability of the trained model (trained by
+the remaining 9 blocks). This process is repeated a specified number of
+times. Monte-Carlo CV randomly samples from the data without replacement
+until there are enough observations (by pre-specified percentage) in the
+training
+set.
 
 ``` r
-chol_cat_quest = chol_full %>% dplyr::select(hsd010, bpq020,drqsdiet, lbdldl) %>% 
-  mutate(Cholesterol = lbdldl,
-         Health =  recode(hsd010, "1" = "Excellent", "2" = "Very good", "3" = "Good", "4" = "Fair", "5" = "Poor"),
-         Hypertension = recode(bpq020, "1" = "Yes", "2" = "No"),
-         Diet = recode(drqsdiet, "1" = "Yes", "2" = "No"))%>%
-  dplyr::select(-hsd010, -bpq020, -drqsdiet, -lbdldl)
+ctrl_kfold <-trainControl(method = "repeatedcv", number = 10, repeats = 5)
 
-chol_cat_quest %>% gather(variable, value, -Cholesterol) %>%
-  ggplot(aes(fct_reorder(value,Cholesterol, .desc=FALSE), Cholesterol, fill = factor(value))) +
-  geom_boxplot() +
-  facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
-  theme(panel.spacing = unit(0, "lines"),
-        panel.border = element_rect(fill = NA),
-        strip.background = element_blank(),
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "none",
-        strip.placement = "outside")
-```
-
-<img src="analysis_files/figure-gfm/unnamed-chunk-4-1.png" width="90%" />
-
-Some of these variables might be important in explaining/predicting the
-cholesterol, and some might have non-linear/complicated relationships
-with the outcome variables. We will explore more in the next
-steps.
-
-### Linear Regression
-
-``` r
-ctrl_kfold <-trainControl(method = "repeatedcv", number = 10, repeats = 15)
-
+#linear model
 set.seed(13)
 lm_kfold <-train(x_train, y_train,
                method = "lm",
                trControl = ctrl_kfold)
-
-#pred_lm_kfold <-predict(lm_kfold$finalModel, newdata = data.frame(x_test))
-
-#get test error from trained model
-#mse(y_test, pred_lm_kfold)
 ```
 
-### Regularized Regression
+  - 10-fold CV (repeated 5 times) We can see that the elastic net tuned
+    by repeated 10-fold CV has very similar mean cross-validated RMSE as
+    the LASSO (36.08 vs. 36.15). The validation RMSE on the
+    (independent) held-out data was also very similar 1245.50 for LASSO
+    and 1244.05 for elastic net. Ridge regression’s performance is also
+    very similar, followed by PCR and linear model has the highest CV
+    RMSE.
 
-Next, we can try out LASSO, ridge, as well as different mixing
-percentages in an elastic net on the training data, using 5-fold cross
-validation to tune the model.
+  - Monte Carlo CV (repeated 50 times, train/test split = 9/1)
 
-``` r
-set.seed(13)
-ridge_k = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = 0,
-                                         lambda = exp(seq(1, 5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_kfold)
+We can see that the elastic net tuned by MCCV has slightly lower mean
+and median CV RMSE than the LASSO and Ridge regression (36.05 vs. 36.09
+vs. 36.11, and 35.83 vs. 35.9 vs. 36.16, respectively).
 
-a = ggplot(ridge_k, highlight = TRUE)
+Looking at Figure 4, we can see both cross-validation methods give
+relatively consistent results for the “optimal” regularized linear
+model. We can also see that elastic net model tuned by 10-fold CV method
+has slightly smaller median CV RMSE and more consistent performance in
+getting lower RMSE (signified by fatter bottom part of violin plot). In
+addition, the test error (MSE) on the held-out data for this elastic net
+model tuned by 10-fold CV is 1244, slightly smaller than that tuned by
+Monte-Carlo CV (validation MSE = 1246). Therefore, I choose to go with
+the elastic net model tuned by 10-fold repeated CV for variable
+selection (mixing percentage alpha = 0.2, and selected lambda = 8.216).
+That said, the models from both CV methods are very comparable and
+Monte-Carlo CV even selects elastic net models with a lower range of CV
+RMSE than 10-fold CV.
 
-set.seed(13)
-lasso_k = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = 1,
-                                         lambda = exp(seq(-1, 1.5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_kfold)
+### Caveats of regularized linear regression
 
-lasso_k$bestTune
-```
-
-    ##    alpha   lambda
-    ## 73     1 2.266375
-
-``` r
-coeff_list_k = coef(lasso_k$finalModel, lasso_k$bestTune$lambda) 
-
-#number of non-zero coefficient estimates
-length(which(as.matrix(coeff_list_k)!=0))
-```
-
-    ## [1] 15
-
-``` r
-#plot 
-b = ggplot(lasso_k, highlight = TRUE)
-
-pred_lasso_k = predict(lasso_k, x_test)
-#obtain the test error
-mse(y_test, pred_lasso_k)
-```
-
-    ## [1] 1247.957
-
-``` r
-#Elastic net 
-set.seed(13)
-elastic_net_k = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = c(0.2, 0.4, 0.6, 0.8),
-                                         lambda = exp(seq(-0.5, 2.5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_kfold)
-c = ggplot(elastic_net_k, highlight = TRUE)
-```
-
-After trying regularized regression, we can also try some
-dimension-reducing techniques such as PCR, and continue using 10-fold
-cross-validation to tune the model.
-
-``` r
-set.seed(13)
-pcr_k = train(x_train, y_train,
-                method = "pcr",
-                tuneGrid = data.frame(ncomp = 1:61),
-                preProc = c("center","scale"),
-                trControl = ctrl_kfold)
-```
-
-``` r
-set.seed(13)
-resamp_k <-resamples(list(elastic_net_kfold = elastic_net_k, 
-                        lasso_kfold = lasso_k,
-                        ridge_kfold = ridge_k,
-                        pcr_kfold = pcr_k,
-                        lm_kfold = lm_kfold))
-```
-
-Monte Carlo (or Leave-Group-Out-Cross-Validation).
-
-``` r
-ctrl_mc <- trainControl(method = "LGOCV", # Leave Group Out CV
-                        number = 150, p = 0.9) 
-set.seed(13)
-lm_mc <-train(x_train, y_train,
-               method = "lm",
-               trControl = ctrl_mc)
-```
-
-``` r
-set.seed(13)
-ridge_mc = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = 0,
-                                         lambda = exp(seq(2, 5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_mc)
-d = ggplot(ridge_mc, highlight = TRUE)
-
-set.seed(13)
-lasso_mc = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = 1,
-                                         lambda = exp(seq(-1, 1.5, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_mc)
-e = ggplot(lasso_mc, highlight = TRUE)
-
-set.seed(13)
-elastic_mc = train(x_train, y_train,
-                  method = "glmnet",
-                  tuneGrid = expand.grid(alpha = c(0.2, 0.4, 0.6, 0.8),
-                                         lambda = exp(seq(0,3, length = 100))),
-                  preProc = c("center","scale"),
-                  trControl = ctrl_mc)
-f = ggplot(elastic_mc, highlight = TRUE)
-
-d+e+f
-```
-
-<img src="analysis_files/figure-gfm/unnamed-chunk-10-1.png" width="90%" />
-
-After selecting the variables, we can also try some dimension-reducing
-techniques such as PCR, use Monte Carlo cross-validation to tune model
-
-``` r
-#PCR Monte Carlo
-set.seed(13)
-pcr_mc = train(x_train, y_train,
-                method = "pcr",
-                tuneGrid = data.frame(ncomp = 1:61),
-                preProc = c("center","scale"),
-                trControl = ctrl_mc)
-```
-
-Compare models’ MSE
-
-``` r
-set.seed(13)
-resamp_mc <-resamples(list(elastic_mc = elastic_mc, 
-                           lasso_mc = lasso_mc,
-                           ridge_mc = ridge_mc,
-                           pcr_mc = pcr_mc,
-                           lm_mc = lm_mc))
-summary(resamp_mc)
-```
-
-    ## 
-    ## Call:
-    ## summary.resamples(object = resamp_mc)
-    ## 
-    ## Models: elastic_mc, lasso_mc, ridge_mc, pcr_mc, lm_mc 
-    ## Number of resamples: 150 
-    ## 
-    ## MAE 
-    ##                Min.  1st Qu.   Median     Mean  3rd Qu.     Max. NA's
-    ## elastic_mc 21.56316 26.75481 28.13511 28.31856 29.64054 35.67980    0
-    ## lasso_mc   21.73145 26.96490 28.19496 28.39526 29.81034 35.43301    0
-    ## ridge_mc   21.02679 26.15867 27.80477 27.99006 29.35441 35.91183    0
-    ## pcr_mc     21.27637 25.97049 27.96894 28.02394 29.72319 37.31071    0
-    ## lm_mc      22.88111 27.01713 29.41852 29.46223 31.14829 38.72716    0
-    ## 
-    ## RMSE 
-    ##                Min.  1st Qu.   Median     Mean  3rd Qu.     Max. NA's
-    ## elastic_mc 26.97396 33.46796 35.69256 36.30857 38.75012 46.64549    0
-    ## lasso_mc   27.15378 33.61453 35.69071 36.32948 38.70731 46.32090    0
-    ## ridge_mc   25.95587 33.25984 35.48630 36.31557 39.20480 47.34106    0
-    ## pcr_mc     26.17221 33.21086 35.93495 36.83084 40.27828 51.17915    0
-    ## lm_mc      27.76902 34.85990 38.06015 38.47973 41.47171 51.42494    0
-    ## 
-    ## Rsquared 
-    ##                    Min.    1st Qu.     Median       Mean   3rd Qu.
-    ## elastic_mc 9.605099e-05 0.01891155 0.05379247 0.07771411 0.1214346
-    ## lasso_mc   2.493640e-05 0.01876350 0.04935873 0.07637364 0.1174785
-    ## ridge_mc   5.417011e-05 0.01462285 0.05861485 0.07921291 0.1186439
-    ## pcr_mc     2.787331e-06 0.01939286 0.06763064 0.08183449 0.1231324
-    ## lm_mc      2.499564e-05 0.01134217 0.04248309 0.06611769 0.1017872
-    ##                 Max. NA's
-    ## elastic_mc 0.3384544    0
-    ## lasso_mc   0.3410521    0
-    ## ridge_mc   0.4254637    0
-    ## pcr_mc     0.3275070    0
-    ## lm_mc      0.3619553    0
-
-Visualization of models obtained by different models and
-cross-validation
-methods
-
-``` r
-resamp_mc_df = resamp_mc[[2]] %>% as_tibble() %>% dplyr::select(ends_with("RMSE")) %>%
-  separate(1, into = c("Elastic Net"), sep = '~') %>% 
-  separate(2, into = c("LASSO"), sep = '~') %>% 
-  separate(3, into = c("Ridge"), sep = '~') %>% 
-  separate(4, into = c("PCR"), sep = '~') %>% 
-  separate(5, into = c("Linear model"), sep = '~') %>%
-  pivot_longer(1:5,names_to = "model", values_to = "RMSE") %>% 
-  mutate(RMSE = as.numeric(RMSE),
-         cv_method = "Monte Carlo CV")
-
-resamp_k_df = resamp_k[[2]] %>% as_tibble() %>% dplyr::select(ends_with("RMSE")) %>%
-  separate(1, into = c("Elastic Net"), sep = '~') %>% 
-  separate(2, into = c("LASSO"), sep = '~') %>% 
-  separate(3, into = c("Ridge"), sep = '~') %>% 
-  separate(4, into = c("PCR"), sep = '~') %>% 
-  separate(5, into = c("Linear model"), sep = '~') %>%
-  pivot_longer(1:5,names_to = "model", values_to = "RMSE") %>% 
-  mutate(RMSE = as.numeric(RMSE),
-         cv_method = "10-fold CV") 
-
-resamp = rbind(resamp_mc_df, resamp_k_df)
-
-resamp %>% ggplot(                                         
-  aes(x = fct_reorder(model,RMSE, .desc=FALSE),
-      y = RMSE, fill = model)) +
-  geom_violin(alpha = 0.7, draw_quantiles = 0.5) +
-  #coord_flip() +
-  labs(
-    title = "Distribution of Cross-validated RMSE across models by two CV methods",
-    y = "Cross-validated RMSE") +
- facet_grid(~cv_method) + 
- theme(axis.title.x= element_blank(), 
-       axis.text.x=element_blank(), 
-       legend.position = "bottom",
-       plot.title = element_text(hjust = 0.5, size=10, face='bold'),
-       legend.title = element_blank())
-```
-
-<img src="analysis_files/figure-gfm/unnamed-chunk-13-1.png" width="90%" />
-
-We can compare the best model obtained from two different types of
-cross-validation (10-fold and Monte Carlo), as well as obtain the test
-error (using the test dataset)
+The LASSO/elastic net model was not flexible enough to capture the
+underlying truth since they still assume linear relationships between
+predictors and response. From the scatterplot, there seem to be some
+non-linear trends. Therefore, this leads to the use of GAM and MARS
+model to explore the non-linear relationships between certain predictors
+and the response variable.
 
 ### GAM
 
-Using the results from `VarImp()` function, we could obtain a list of
-variables that are strong predictors of the outcome variable. We then
-use pairwise-scatterplots to explore the relationship between these
-variables and the outcome variable
+Using the function `varImp` on the elastic net model, I obtained 17 most
+important variables (both categorical and numerical). These variables
+include: age (ridageyr), gender (riagendr), being told to have diabetes
+by doctor (diq010), daily alcohol consumption (dr1talco), diastolic
+blood pressure (bpxdi), lymphocyte percentage (lbxlypct), neutrophil
+percentage (lbxnepct), high-sensitivity C-reactive protein level
+(lbxhscrp), globulin level (lbxgb), alkaline phosphate level (lbxsapsi),
+being told to have hypertension by doctor (bpq020), hemoglobin count
+(lbxhgb), hematocrit level (lbxhct), self-perceived healthiness of diet
+(dbq700), past-year household food security (fsdhh), uric acid level
+(lbxsua), and lactate dehydrogenase ldc (U/L). I then used
+pairwise-scatter plots (Figure 4) to explore the relationship between
+the selected numerical variables and the response variable.
+
+For GAM, I fitted two models, one excluded variables that seemed not
+strongly associated with the response variable (determined from box
+plots in EDA step), and the other one was the full model. The ANOVA
+F-test was conducted to determine which model is better. Since F-test
+p-value = 0.13 \> 0.05, I decided to go with the more parsimonious GAM,
+whose expression is
+below:
+
+\(\hat{LDL} = 89.6 - 0.47 \times age + 18.5 \times I(diabetes = No) + 14.32 \times I(diabetes = Borderline) -0.2\times alcohol + 9.87 \times Glucose + 7.23 \times I(Hypertension = No) + 11.04 \times I(diet = very good) + 7.57 \times I(diet = good) + 9.04 \times I(diet = fair) + 16.62 \times I(diet = poor) + \hat f_{1}(HSCRP) + \hat f_{2}(Hematocrit) + \hat f_{3}(Alkaline Phosphate) + \hat f_{4}(LDH)\)
+
+The individual relationships between the predictors and LDL can be
+observed in figure 5. A few observations are; holding other covariates
+fixed, predicted LDL tends to: 1. fluctuate a bit across levels of
+high-sensitivity C-reactive protein (HSCRP), hitting the lowest point
+when HSCRP is around 20 mg/L, and highest point when HSCRP is 40 mg/L.
+2. increase and peaks when alkaline phosphate reaches 75U/L and the
+effect decreases slightly beyond that point.
+
+### Multivariate adaptive regression spline (MARS)
+
+I let the number of degrees vary from 1 to 3 to explore any potential
+interactions between the hinge functions. Number of prunes varies from 1
+to 25 to give a wide enough range for the number of terms to search for
+lowest cross-validated RMSE.
+
+MARS selects the number of basis functions \(h_{i}\) as 6 that minimize
+the cross-validated RMSE. The product degree selected is 1 so there is
+no interaction between the hinge functions. I then created partial
+dependence plots, which are used to examine the marginal effect of the
+predictors on the response. MARS model selected HSCRP, Glucose level,
+and lymphocyte percentage.
+
+Looking at the partial dependence plots in figure 6, we can see the
+non-linear marginal effect of each predictor on the predicted LDL. Both
+GAM and MARS suggested there was a non-linear relationship between
+high-sensitivity C-reactive protein/HSCRP (an inflammation signal) and
+LDL-C, with the LDL-C maximum being in the middle range of HSCRP.
+However, due to the difference between hinge function and smoothing
+spline, the PDP describes a simpler relationship between HSCRP and LDL
+than the smoothing spline in GAM.
+
+The validation RMSE of the MARS model is 1345.45. The GAM model’s
+validation RMSE is 1256, a little higher than that of tuned-LASSO (1244)
+and tuned-elastic net (1246), despite having fewer variables, offering
+more flexibility and taking into account non-linearity between the
+predictors and outcome.
+
+### Conclusion
+
+Given the distribution of out response variable (mean = 114 and median =
+112), the best cross-validated RMSE (by the elastic net tuned by
+repeated 10-fold CV) is at about 30% of the mean value of the response
+variable, which is not small, but it does not signify extreme variance
+either. That said, the prediction ability given the selected variables
+is limited at best. Small cross-validated R-squared value, averaged at
+7.5% signifies there is still a large share of variance in LDL not
+captured by the regularized model. This is likely due to the selection
+of variables in the data collection process. We did not dig deep into
+the pre-exisitng literature but rather assumed associations between some
+predictors and response. A better job at selecting predictors is
+desired. Tuned GAM and MARS models, despite capturing non-linear
+associations, did not perform as well with respect to validation RMSE.
+Further literature search and more domain knowledge is needed in
+deciphering the truthfulness of the non-linearity captured by these
+models. All in all, the models offer some insights into the
+relationships between certain variables and offer some predictive
+ability. However, more work needs done in order to improve the
+predictive ability of these
+models.
+
+#### Figure 1. Distribution of LDL across some demographic and socioeconomic determinants of health
 
 ``` r
-varImp(lasso_k)
+#whether the cholesterol level is affected by some categorical demographic variables such as gender, race, immigration status 
+chol_cat_dem = chol_full %>% dplyr::select(dmdborn4, ridreth3, riagendr, lbdldl) %>% 
+  mutate(LDL = lbdldl,
+         Immigration =  recode(dmdborn4, "1" = "US-born", "2" = "Immigrant"),
+         Race = recode(ridreth3, "1" = "Mexican American", "2" = "Other Hispanic", "3" = "White", "4" = "Black", "6" = "Asian", "7" = "Other/Multiracial"),
+         Gender = recode(riagendr, "1" = "Male", "2" = "Female")) %>% 
+  dplyr::select(-lbdldl, -ridreth3, - riagendr, -dmdborn4)
+
+chol_cat_quest = chol_full %>% dplyr::select(hsd010, bpq020,drqsdiet) %>% 
+  mutate(Health =  recode(hsd010, "1" = "Excellent", "2" = "Very good", "3" = "Good", "4" = "Fair", "5" = "Poor"),
+         Hypertension = recode(bpq020, "1" = "Yes", "2" = "No"),
+         Diet = recode(drqsdiet, "1" = "Yes", "2" = "No"))%>%
+  dplyr::select(-hsd010, -bpq020, -drqsdiet)
+
+chol_cat = cbind(chol_cat_dem, chol_cat_quest)
+         
+chol_cat %>% gather(variable, value, -LDL) %>%
+  ggplot(aes(factor(value), LDL, fill = factor(value))) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free_x", nrow = 1, strip.position = "bottom") +
+  theme(panel.spacing = unit(0, "lines"),
+        panel.border = element_rect(fill = NA),
+        strip.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none",
+        strip.placement = "outside")
 ```
 
-    ## glmnet variable importance
-    ## 
-    ##   only 20 most important variables shown (out of 83)
-    ## 
-    ##            Overall
-    ## ridageyr  100.0000
-    ## diq0102    87.5971
-    ## lbxlypct   57.6219
-    ## dr1talco   33.4239
-    ## lbxhct     31.6811
-    ## bpxdi      26.9521
-    ## lbxhscrp   21.6512
-    ## lbxsgb     20.2853
-    ## lbxsapsi   18.0677
-    ## bpq0202    14.5465
-    ## dbq7005     8.1583
-    ## fsdhh3      6.6318
-    ## lbxsua      1.8099
-    ## lbxsldsi    0.1153
-    ## lbxsph      0.0000
-    ## hsd0104     0.0000
-    ## dr1ttfat    0.0000
-    ## lbxnepct    0.0000
-    ## ridreth13   0.0000
-    ## hsd0102     0.0000
+<img src="analysis_files/figure-gfm/unnamed-chunk-17-1.png" width="90%" />
+
+#### Figure 2. 10-fold repeated CV hyperparameter tuning plots
+
+    ## [1] 1245.502
+
+    ##    alpha   lambda
+    ## 87   0.2 8.215812
+
+    ## [1] 1244.054
+
+<img src="analysis_files/figure-gfm/unnamed-chunk-18-1.png" width="90%" />
+
+<img src="analysis_files/figure-gfm/unnamed-chunk-19-1.png" width="90%" />
+
+#### Figure 4. Pairwise scatterplots between important numerical predictors and LDL-C
+
+<img src="analysis_files/figure-gfm/unnamed-chunk-20-1.png" width="90%" />
+
+#### Figure 5. Visualizations of smoothing splines in GAM
 
 ``` r
-#get the variables in the design matrix
-x_train_gam <- chol_train %>% dplyr::select(-lbdldl) %>% 
-  dplyr::select(ridageyr, diq010, dr1talco, bpxdi, lbxlypct, lbxnepct, lbxhscrp, lbxsgb, lbxsapsi, bpq020, lbxhct, lbxhgb, dbq700, fsdhh, riagendr, lbxsua, lbxsldsi) %>% 
-  dplyr::select_if(., is.numeric)
-
-#plot pairwise scatterplot between variables and outcome variable 
-theme1 <-trellis.par.get()
-theme1$plot.symbol$col <-rgb(.2, .4, .2, .5)
-theme1$plot.symbol$pch <- 16
-theme1$plot.line$col <-rgb(.8, .1, .1, 1)
-theme1$plot.line$lwd <- 2
-theme1$strip.background$col <-rgb(.0, .2, .6, .2)
-trellis.par.set(theme1)
-featurePlot(x_train_gam, y_train, plot = "scatter", labels =c("","Y"),
-            type =c("p"), layout =c(4, 4))
+par(mfrow = c(2,2))
+plot(gam.m2, se = TRUE, scheme=1, col='#FF8000' , shade=T, shade.col='gray90')
 ```
 
-### Fit a generalized additive model (GAM) using all predictors
+<img src="analysis_files/figure-gfm/unnamed-chunk-21-1.png" width="90%" />
+
+#### Figure 6. Partial Dependence Plots
 
 ``` r
-set.seed(7)
-#use gam 
-gam.m1 = gam(lbdldl~s(ridageyr) + diq010 + s(lbxlypct) + s(dr1talco) + s(bpxdi) + s(lbxnepct)+ s(lbxhscrp) + s(lbxsgb) + s(lbxhct) + bpq020 + s(lbxsapsi) + dbq700 + s(lbxhgb) + fsdhh + s(lbxsldsi), data = chol_full)
+p1 = pdp::partial(mars.fit, pred.var =c("lbxsgl"), grid.resolution = 10) %>% autoplot(ylab = "Predicted LDL", xlab = "Glucose (mg/dL)")
 
-#anova(gam.m1, gam.m2, test = "F") 
-#since p-value is greater than 0.05, the smaller model (with more linear predictors) is "superior".
+p2 = pdp::partial(mars.fit, pred.var =c("lbxhscrp"), grid.resolution = 10) %>% autoplot(ylab = "Predicted LDL", xlab = "High-sensitivity C-reactice protein")
 
-summary(gam.m1)
+p3 = pdp::partial(mars.fit, pred.var =c("lbxlypct"), grid.resolution = 10) %>% autoplot(ylab = "Predicted LDL", xlab = "Lymphocyte percentage (%)")
 
-par(mfrow = c(3,4))
-plot(gam.m1, se = TRUE, pch=19, cex=0.25, scheme=1, col='#FF8000' , shade=T, shade.col='gray90')
+grid.arrange(p1,p2,p3,ncol = 3, top = "Figure 6. Partial Dependence Plots from MARS model")
 ```
